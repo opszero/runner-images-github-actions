@@ -133,7 +133,7 @@ source "azure-arm" "build_image" {
   image_sku       = "22_04-lts"
 
   // Target location
-  managed_image_name = "${local.managed_image_name}"
+  managed_image_name                = "${local.managed_image_name}"
   managed_image_resource_group_name = "${var.managed_image_resource_group_name}"
 
   // Resource group for VM
@@ -155,7 +155,7 @@ source "azure-arm" "build_image" {
   dynamic "azure_tag" {
     for_each = var.azure_tags
     content {
-      name = azure_tag.key
+      name  = azure_tag.key
       value = azure_tag.value
     }
   }
@@ -183,9 +183,9 @@ build {
 
   // Install MS package repos, Configure apt
   provisioner "shell" {
-    environment_vars = ["HELPER_SCRIPTS=${local.helper_script_folder}","DEBIAN_FRONTEND=noninteractive"]
+    environment_vars = ["HELPER_SCRIPTS=${local.helper_script_folder}", "DEBIAN_FRONTEND=noninteractive"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-ms-repos.sh",
       "${path.root}/../scripts/build/configure-apt.sh"
     ]
@@ -204,7 +204,7 @@ build {
 
   provisioner "file" {
     destination = "${local.image_folder}"
-    sources     = [
+    sources = [
       "${path.root}/../assets/post-gen",
       "${path.root}/../scripts/tests"
     ]
@@ -255,7 +255,7 @@ build {
   provisioner "shell" {
     environment_vars = ["DEBIAN_FRONTEND=noninteractive", "HELPER_SCRIPTS=${local.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${local.installer_script_folder}"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-git.sh",
       "${path.root}/../scripts/build/install-git-lfs.sh",
       "${path.root}/../scripts/build/install-github-cli.sh",

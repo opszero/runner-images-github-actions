@@ -5,6 +5,11 @@ packer {
       version = "1.4.5"
     }
 
+    amazon = {
+      source  = "github.com/hashicorp/amazon"
+      version = "~> 1"
+    }
+
     googlecompute = {
       source  = "github.com/hashicorp/googlecompute"
       version = "~> 1"
@@ -174,28 +179,78 @@ source "azure-arm" "build_image" {
   dynamic "azure_tag" {
     for_each = var.azure_tags
     content {
-      name = azure_tag.key
+      name  = azure_tag.key
       value = azure_tag.value
     }
   }
 }
 
 source "googlecompute" "build_image" {
-  project_id = "ethereal-atlas-300701"
+  project_id   = "ethereal-atlas-300701"
   source_image = "ubuntu-2404-noble-amd64-v20241115"
   ssh_username = "packer"
-  zone = "us-central1-a"
-  machine_type   = "n2-standard-32"
+  zone         = "us-central1-a"
+  machine_type = "n2-standard-32"
 
-disk_size = 100
-account_file = "/Users/abhi/.config/gcloud/application_default_credentials.json"
+  disk_size    = 100
+  account_file = "/Users/abhi/.config/gcloud/application_default_credentials.json"
   # credentials_file = "/Users/abhi/opsZero IUL Dropbox/Abhi Yerra/Code/Clients/canal/infrastructure/environments/canal-production-gcp/ethereal-atlas-300701-34ae06aa8867.json"
 }
 
+source "amazon-ebs" "ubuntu-amd" {
+  profile = "augment-admin"
+
+  ami_name      = "ubuntu-github-actions"
+  instance_type = "m6a.large"
+  region        = "us-west-2"
+  source_ami_filter {
+    filters = {
+      name                = "ubuntu/images/*ubuntu-noble-24.04-amd64-server-*"
+      root-device-type    = "ebs"
+      virtualization-type = "hvm"
+    }
+    most_recent = true
+    owners      = ["099720109477"]
+  }
+  ssh_username = "ubuntu"
+
+  launch_block_device_mappings {
+    device_name = "/dev/sda1"
+    volume_size = 100
+    encrypted   = true
+  }
+
+}
+
+source "amazon-ebs" "ubuntu-arm" {
+  profile = "augment-admin"
+
+  ami_name      = "ubuntu-github-actions-arm"
+  instance_type = "m6g.large"
+  region        = "us-west-2"
+  source_ami_filter {
+    filters = {
+      name                = "ubuntu/images/*ubuntu-noble-24.04-arm64-server-*"
+      root-device-type    = "ebs"
+      virtualization-type = "hvm"
+    }
+    most_recent = true
+    owners      = ["099720109477"]
+  }
+  ssh_username = "ubuntu"
+
+  launch_block_device_mappings {
+    device_name = "/dev/sda1"
+    volume_size = 100
+    encrypted   = true
+  }
+
+}
 
 build {
   # sources = ["source.azure-arm.build_image"]
-  sources = ["source.googlecompute.build_image"]
+  # sources = ["source.googlecompute.build_image"]
+  sources = ["source.amazon-ebs.ubuntu-arm"]
 
   provisioner "shell" {
     execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
@@ -213,9 +268,9 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}","DEBIAN_FRONTEND=noninteractive"]
+    environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "DEBIAN_FRONTEND=noninteractive"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-ms-repos.sh",
       "${path.root}/../scripts/build/configure-apt-sources.sh",
       "${path.root}/../scripts/build/configure-apt.sh"
@@ -234,7 +289,7 @@ build {
 
   provisioner "file" {
     destination = "${var.image_folder}"
-    sources     = [
+    sources = [
       "${path.root}/../assets/post-gen",
       "${path.root}/../scripts/tests",
       "${path.root}/../scripts/docs-gen"
@@ -253,7 +308,7 @@ build {
 
   provisioner "shell" {
     execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    inline          = [
+    inline = [
       "mv ${var.image_folder}/docs-gen ${var.image_folder}/SoftwareReport",
       "mv ${var.image_folder}/post-gen ${var.image_folder}/post-generation"
     ]
@@ -277,7 +332,7 @@ build {
     scripts          = ["${path.root}/../scripts/build/install-apt-vital.sh"]
   }
 
-provisioner "shell" {
+  provisioner "shell" {
     environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
     scripts          = ["${path.root}/../scripts/build/install-powershell.sh"]
@@ -292,7 +347,7 @@ provisioner "shell" {
   provisioner "shell" {
     environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}", "DEBIAN_FRONTEND=noninteractive"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-actions-cache.sh",
       "${path.root}/../scripts/build/install-runner-package.sh",
       "${path.root}/../scripts/build/install-apt-common.sh",
