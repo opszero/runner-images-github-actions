@@ -4,6 +4,16 @@ packer {
       source  = "github.com/hashicorp/azure"
       version = "1.4.5"
     }
+
+    amazon = {
+      source  = "github.com/hashicorp/amazon"
+      version = "~> 1"
+    }
+
+    googlecompute = {
+      source  = "github.com/hashicorp/googlecompute"
+      version = "~> 1"
+    }
   }
 }
 
@@ -169,14 +179,78 @@ source "azure-arm" "build_image" {
   dynamic "azure_tag" {
     for_each = var.azure_tags
     content {
-      name = azure_tag.key
+      name  = azure_tag.key
       value = azure_tag.value
     }
   }
 }
 
+source "googlecompute" "build_image" {
+  project_id   = "ethereal-atlas-300701"
+  source_image = "ubuntu-2404-noble-amd64-v20241115"
+  ssh_username = "packer"
+  zone         = "us-central1-a"
+  machine_type = "n2-standard-32"
+
+  disk_size    = 100
+  account_file = "/Users/abhi/.config/gcloud/application_default_credentials.json"
+  # credentials_file = "/Users/abhi/opsZero IUL Dropbox/Abhi Yerra/Code/Clients/canal/infrastructure/environments/canal-production-gcp/ethereal-atlas-300701-34ae06aa8867.json"
+}
+
+source "amazon-ebs" "ubuntu-amd" {
+  profile = "augment-admin"
+
+  ami_name      = "ubuntu-github-actions"
+  instance_type = "m6a.large"
+  region        = "us-west-2"
+  source_ami_filter {
+    filters = {
+      name                = "ubuntu/images/*ubuntu-noble-24.04-amd64-server-*"
+      root-device-type    = "ebs"
+      virtualization-type = "hvm"
+    }
+    most_recent = true
+    owners      = ["099720109477"]
+  }
+  ssh_username = "ubuntu"
+
+  launch_block_device_mappings {
+    device_name = "/dev/sda1"
+    volume_size = 100
+    encrypted   = true
+  }
+
+}
+
+source "amazon-ebs" "ubuntu-arm" {
+  profile = "augment-admin"
+
+  ami_name      = "ubuntu-github-actions-arm"
+  instance_type = "m6g.large"
+  region        = "us-west-2"
+  source_ami_filter {
+    filters = {
+      name                = "ubuntu/images/*ubuntu-noble-24.04-arm64-server-*"
+      root-device-type    = "ebs"
+      virtualization-type = "hvm"
+    }
+    most_recent = true
+    owners      = ["099720109477"]
+  }
+  ssh_username = "ubuntu"
+
+  launch_block_device_mappings {
+    device_name = "/dev/sda1"
+    volume_size = 100
+    encrypted   = true
+  }
+
+}
+
 build {
-  sources = ["source.azure-arm.build_image"]
+  # sources = ["source.azure-arm.build_image"]
+  # sources = ["source.googlecompute.build_image"]
+  sources = ["source.amazon-ebs.ubuntu-arm"]
 
   provisioner "shell" {
     execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
@@ -194,9 +268,9 @@ build {
   }
 
   provisioner "shell" {
-    environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}","DEBIAN_FRONTEND=noninteractive"]
+    environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "DEBIAN_FRONTEND=noninteractive"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-ms-repos.sh",
       "${path.root}/../scripts/build/configure-apt-sources.sh",
       "${path.root}/../scripts/build/configure-apt.sh"
@@ -215,7 +289,7 @@ build {
 
   provisioner "file" {
     destination = "${var.image_folder}"
-    sources     = [
+    sources = [
       "${path.root}/../assets/post-gen",
       "${path.root}/../scripts/tests",
       "${path.root}/../scripts/docs-gen"
@@ -234,7 +308,7 @@ build {
 
   provisioner "shell" {
     execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    inline          = [
+    inline = [
       "mv ${var.image_folder}/docs-gen ${var.image_folder}/SoftwareReport",
       "mv ${var.image_folder}/post-gen ${var.image_folder}/post-generation"
     ]
@@ -258,7 +332,7 @@ build {
     scripts          = ["${path.root}/../scripts/build/install-apt-vital.sh"]
   }
 
-provisioner "shell" {
+  provisioner "shell" {
     environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
     scripts          = ["${path.root}/../scripts/build/install-powershell.sh"]
@@ -273,53 +347,53 @@ provisioner "shell" {
   provisioner "shell" {
     environment_vars = ["HELPER_SCRIPTS=${var.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}", "DEBIAN_FRONTEND=noninteractive"]
     execute_command  = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    scripts          = [
+    scripts = [
       "${path.root}/../scripts/build/install-actions-cache.sh",
       "${path.root}/../scripts/build/install-runner-package.sh",
       "${path.root}/../scripts/build/install-apt-common.sh",
-      "${path.root}/../scripts/build/install-azcopy.sh",
-      "${path.root}/../scripts/build/install-azure-cli.sh",
-      "${path.root}/../scripts/build/install-azure-devops-cli.sh",
+      # "${path.root}/../scripts/build/install-azcopy.sh",
+      # "${path.root}/../scripts/build/install-azure-cli.sh",
+      # "${path.root}/../scripts/build/install-azure-devops-cli.sh",
       "${path.root}/../scripts/build/install-bicep.sh",
       "${path.root}/../scripts/build/install-apache.sh",
       "${path.root}/../scripts/build/install-aws-tools.sh",
       "${path.root}/../scripts/build/install-clang.sh",
-      "${path.root}/../scripts/build/install-swift.sh",
+      # "${path.root}/../scripts/build/install-swift.sh",
       "${path.root}/../scripts/build/install-cmake.sh",
       "${path.root}/../scripts/build/install-codeql-bundle.sh",
       "${path.root}/../scripts/build/install-container-tools.sh",
-      "${path.root}/../scripts/build/install-dotnetcore-sdk.sh",
-      "${path.root}/../scripts/build/install-microsoft-edge.sh",
+      # "${path.root}/../scripts/build/install-dotnetcore-sdk.sh",
+      # "${path.root}/../scripts/build/install-microsoft-edge.sh",
       "${path.root}/../scripts/build/install-gcc-compilers.sh",
-      "${path.root}/../scripts/build/install-firefox.sh",
-      "${path.root}/../scripts/build/install-gfortran.sh",
+      # "${path.root}/../scripts/build/install-firefox.sh",
+      # "${path.root}/../scripts/build/install-gfortran.sh",
       "${path.root}/../scripts/build/install-git.sh",
       "${path.root}/../scripts/build/install-git-lfs.sh",
       "${path.root}/../scripts/build/install-github-cli.sh",
-      "${path.root}/../scripts/build/install-google-chrome.sh",
-      "${path.root}/../scripts/build/install-google-cloud-cli.sh",
-      "${path.root}/../scripts/build/install-haskell.sh",
+      # "${path.root}/../scripts/build/install-google-chrome.sh",
+      # "${path.root}/../scripts/build/install-google-cloud-cli.sh",
+      # "${path.root}/../scripts/build/install-haskell.sh",
       "${path.root}/../scripts/build/install-java-tools.sh",
       "${path.root}/../scripts/build/install-kubernetes-tools.sh",
-      "${path.root}/../scripts/build/install-miniconda.sh",
-      "${path.root}/../scripts/build/install-kotlin.sh",
-      "${path.root}/../scripts/build/install-mysql.sh",
+      # "${path.root}/../scripts/build/install-miniconda.sh",
+      # "${path.root}/../scripts/build/install-kotlin.sh",
+      # "${path.root}/../scripts/build/install-mysql.sh",
       "${path.root}/../scripts/build/install-nginx.sh",
       "${path.root}/../scripts/build/install-nvm.sh",
       "${path.root}/../scripts/build/install-nodejs.sh",
-      "${path.root}/../scripts/build/install-bazel.sh",
-      "${path.root}/../scripts/build/install-php.sh",
+      # "${path.root}/../scripts/build/install-bazel.sh",
+      # "${path.root}/../scripts/build/install-php.sh",
       "${path.root}/../scripts/build/install-postgresql.sh",
-      "${path.root}/../scripts/build/install-pulumi.sh",
+      # "${path.root}/../scripts/build/install-pulumi.sh",
       "${path.root}/../scripts/build/install-ruby.sh",
       "${path.root}/../scripts/build/install-rust.sh",
-      "${path.root}/../scripts/build/install-julia.sh",
-      "${path.root}/../scripts/build/install-selenium.sh",
-      "${path.root}/../scripts/build/install-packer.sh",
-      "${path.root}/../scripts/build/install-vcpkg.sh",
+      # "${path.root}/../scripts/build/install-julia.sh",
+      # "${path.root}/../scripts/build/install-selenium.sh",
+      # "${path.root}/../scripts/build/install-packer.sh",
+      # "${path.root}/../scripts/build/install-vcpkg.sh",
       "${path.root}/../scripts/build/configure-dpkg.sh",
       "${path.root}/../scripts/build/install-yq.sh",
-      "${path.root}/../scripts/build/install-android-sdk.sh",
+      # "${path.root}/../scripts/build/install-android-sdk.sh",
       "${path.root}/../scripts/build/install-pypy.sh",
       "${path.root}/../scripts/build/install-python.sh",
       "${path.root}/../scripts/build/install-zstd.sh"
@@ -369,22 +443,22 @@ provisioner "shell" {
     start_retry_timeout = "10m"
   }
 
-  provisioner "shell" {
-    environment_vars = ["IMAGE_VERSION=${var.image_version}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}"]
-    inline           = ["pwsh -File ${var.image_folder}/SoftwareReport/Generate-SoftwareReport.ps1 -OutputDirectory ${var.image_folder}", "pwsh -File ${var.image_folder}/tests/RunAll-Tests.ps1 -OutputDirectory ${var.image_folder}"]
-  }
+  # provisioner "shell" {
+  #   environment_vars = ["IMAGE_VERSION=${var.image_version}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}"]
+  #   inline           = ["pwsh -File ${var.image_folder}/SoftwareReport/Generate-SoftwareReport.ps1 -OutputDirectory ${var.image_folder}", "pwsh -File ${var.image_folder}/tests/RunAll-Tests.ps1 -OutputDirectory ${var.image_folder}"]
+  # }
 
-  provisioner "file" {
-    destination = "${path.root}/../Ubuntu2404-Readme.md"
-    direction   = "download"
-    source      = "${var.image_folder}/software-report.md"
-  }
+  # provisioner "file" {
+  #   destination = "${path.root}/../Ubuntu2404-Readme.md"
+  #   direction   = "download"
+  #   source      = "${var.image_folder}/software-report.md"
+  # }
 
-  provisioner "file" {
-    destination = "${path.root}/../software-report.json"
-    direction   = "download"
-    source      = "${var.image_folder}/software-report.json"
-  }
+  # provisioner "file" {
+  #   destination = "${path.root}/../software-report.json"
+  #   direction   = "download"
+  #   source      = "${var.image_folder}/software-report.json"
+  # }
 
   provisioner "shell" {
     environment_vars = ["HELPER_SCRIPT_FOLDER=${var.helper_script_folder}", "INSTALLER_SCRIPT_FOLDER=${var.installer_script_folder}", "IMAGE_FOLDER=${var.image_folder}"]
@@ -392,9 +466,9 @@ provisioner "shell" {
     scripts          = ["${path.root}/../scripts/build/configure-system.sh"]
   }
 
-  provisioner "shell" {
-    execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
-    inline          = ["sleep 30", "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"]
-  }
+  # provisioner "shell" {
+  #   execute_command = "sudo sh -c '{{ .Vars }} {{ .Path }}'"
+  #   inline          = ["sleep 30", "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync"]
+  # }
 
 }
